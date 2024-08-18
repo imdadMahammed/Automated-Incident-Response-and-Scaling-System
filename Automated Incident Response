@@ -1,0 +1,31 @@
+import os
+import requests
+from kubernetes import client, config
+
+# Load kube config
+config.load_kube_config()
+
+# Set up Kubernetes API client
+v1 = client.CoreV1Api()
+
+# URL for Prometheus Alertmanager API
+ALERTMANAGER_URL = "http://<PROMETHEUS_ALERTMANAGER_IP>:9093/api/v1/alerts"
+
+def restart_pod(namespace, pod_name):
+    print(f"Restarting pod: {pod_name}")
+    try:
+        v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+    except client.exceptions.ApiException as e:
+        print(f"Exception when restarting pod: {e}")
+
+def handle_alerts():
+    response = requests.get(ALERTMANAGER_URL)
+    alerts = response.json()['data']
+    for alert in alerts:
+        if alert['status'] == 'firing' and alert['labels']['alertname'] == 'HighCPUUsage':
+            pod_name = alert['labels']['pod']
+            namespace = 'default'
+            restart_pod(namespace, pod_name)
+
+if __name__ == "__main__":
+    handle_alerts()
